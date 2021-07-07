@@ -162,6 +162,9 @@ class GPUStats():
                 self._log("debug", "AMD Detected. Using plaidMLStats")
                 loglevel = "INFO" if self._logger is None else self._logger.getEffectiveLevel()
                 self._plaid = plaidlib(log_level=loglevel, log=log)
+            elif get_backend() == "tf-macos":
+                self._log("debug", "Tensorflow MacOS")
+                loglevel = "INFO" if self._logger is None else self._logger.getEffectiveLevel()
             elif IS_MACOS:
                 self._log("debug", "macOS Detected. Using pynvx")
                 try:
@@ -217,6 +220,9 @@ class GPUStats():
         :attr:`_device_count`. """
         if self._is_plaidml:
             self._device_count = self._plaid.device_count
+        elif get_backend() == "tf-macos":
+            import tensorflow as tf
+            self._device_count = len(tf.config.list_physical_devices(device_type="GPU"))
         elif IS_MACOS:
             self._device_count = pynvx.cudaDeviceGetCount(ignore=True)
         else:
@@ -232,6 +238,9 @@ class GPUStats():
         :attr:`_active_devices`. """
         if self._is_plaidml:
             self._active_devices = self._plaid.active_devices
+        elif get_backend() == "tf-macos":
+            import tensorflow as tf
+            self._active_devices = [0]
         else:
             if self._device_count == 0:
                 self._active_devices = []
@@ -249,6 +258,10 @@ class GPUStats():
         :attr:`_handles`. """
         if self._is_plaidml:
             self._handles = self._plaid.devices
+        elif get_backend() == "tf-macos":
+            import tensorflow as tf
+            self._handles = [tf.config.list_physical_devices(device_type="GPU")[i]
+                             for i in range(self._device_count)]
         elif IS_MACOS:
             self._handles = pynvx.cudaDeviceGetHandles(ignore=True)
         else:
@@ -268,6 +281,10 @@ class GPUStats():
             driver = self._plaid.drivers
         elif IS_MACOS:
             driver = pynvx.cudaSystemGetDriverVersion(ignore=True)
+        elif get_backend() == "tf-macos":
+            import tensorflow as tf
+            device = tf.config.list_physical_devices(device_type="GPU")[0]
+            driver = tf.config.experimental.get_device_details(device).get('device_name')
         else:
             try:
                 driver = pynvml.nvmlSystemGetDriverVersion().decode("utf-8")
@@ -291,6 +308,9 @@ class GPUStats():
             names = list()
         if self._is_plaidml:
             names = self._plaid.names
+        elif get_backend() == "tf-macos":
+            names = [handle.name
+                     for handle in self._handles]
         elif IS_MACOS:
             names = [pynvx.cudaGetName(handle, ignore=True)
                      for handle in self._handles]
@@ -314,6 +334,8 @@ class GPUStats():
             vram = list()
         elif self._is_plaidml:
             vram = self._plaid.vram
+        elif get_backend() == "tf-macos":
+            vram = [8000]
         elif IS_MACOS:
             vram = [pynvx.cudaGetMemTotal(handle, ignore=True) / (1024 * 1024)
                     for handle in self._handles]
@@ -343,6 +365,8 @@ class GPUStats():
         self._initialize()
         if self._is_plaidml:
             vram = self._plaid.vram
+        elif get_backend() == "tf-macos":
+            vram = [8000]
         elif IS_MACOS:
             vram = [pynvx.cudaGetMemFree(handle, ignore=True) / (1024 * 1024)
                     for handle in self._handles]
